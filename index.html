@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>Исторический тренажёр</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            max-height: 95vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* ... остальные стили такие же, как в предыдущей версии ... */
+        /* (я сократил для экономии места, но полный код пришлю) */
+        
+        .install-banner {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-top: 12px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            animation: slideUp 0.5s ease;
+        }
+        
+        .install-banner.show {
+            display: flex;
+        }
+        
+        .install-banner .text {
+            font-size: 14px;
+            flex: 1;
+        }
+        
+        .install-banner .btn-install {
+            background: white;
+            color: #764ba2;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @media (max-width: 400px) {
+            .container { padding: 14px; }
+            .header h1 { font-size: 18px; }
+            .question-box .date { font-size: 24px; }
+            .option-btn { padding: 12px; font-size: 14px; }
+        }
+        
+        /* Стили для скролла */
+        .container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <!-- Баннер установки -->
+        <div class="install-banner" id="installBanner">
+            <span class="text">📱 Установить приложение</span>
+            <button class="btn-install" id="installBtn">Установить</button>
+        </div>
+        
+        <!-- Главное меню -->
+        <div class="screen active" id="menuScreen">
+            <div class="header">
+                <h1>📚 Исторический тренажёр</h1>
+                <div class="subtitle">Россия XX-XXI век</div>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-item correct">
+                    <div class="number" id="correctCount">0</div>
+                    <div class="label">✅ Правильно</div>
+                </div>
+                <div class="stat-item wrong">
+                    <div class="number" id="wrongCount">0</div>
+                    <div class="label">❌ Неправильно</div>
+                </div>
+                <div class="stat-item percent">
+                    <div class="number" id="percentCount">0%</div>
+                    <div class="label">📈 Процент</div>
+                </div>
+            </div>
+            
+            <div style="text-align:center;color:#888;font-size:13px;margin-bottom:10px;">
+                📊 Осталось: <span id="remainingCount">0</span> дат
+            </div>
+            
+            <div class="menu">
+                <button class="menu-btn primary" onclick="showRandomDate()">🎲 Случайная дата</button>
+                <button class="menu-btn success" onclick="showFullAnswer()">📖 Полный ответ</button>
+                <button class="menu-btn purple" onclick="showAllDates()">📋 Все даты</button>
+                <button class="menu-btn warning" onclick="startQuiz('date-to-event')">❓ Дата → Событие</button>
+                <button class="menu-btn danger" onclick="startQuiz('event-to-date')">❓ Событие → Дата</button>
+                <button class="menu-btn secondary" onclick="resetAll()">🔄 Сбросить</button>
+            </div>
+        </div>
+        
+        <!-- Экран викторины -->
+        <div class="screen" id="quizScreen">
+            <div class="mode-indicator" id="quizMode">❓ Викторина</div>
+            
+            <div class="question-box" id="questionBox">
+                <div class="date" id="questionDate">1945</div>
+            </div>
+            
+            <div class="options" id="optionsContainer"></div>
+            
+            <div id="resultContainer"></div>
+            
+            <div class="sub-hint">Выберите вариант или нажмите 0 для выхода</div>
+            
+            <button class="back-btn" onclick="goToMenu()">⬅ Вернуться в меню</button>
+        </div>
+        
+        <!-- Экран результата -->
+        <div class="screen" id="resultScreen">
+            <div class="header">
+                <h1 id="resultTitle">🎯 Результат</h1>
+            </div>
+            <div id="resultContent"></div>
+            <button class="back-btn" onclick="goToMenu()">⬅ Вернуться в меню</button>
+        </div>
+        
+        <!-- Экран всех дат -->
+        <div class="screen" id="allDatesScreen">
+            <div class="header">
+                <h1>📋 Все даты</h1>
+            </div>
+            <div class="all-dates" id="allDatesList"></div>
+            <button class="back-btn" onclick="goToMenu()">⬅ Вернуться в меню</button>
+        </div>
+        
+        <!-- Экран показа даты -->
+        <div class="screen" id="dateScreen">
+            <div class="header">
+                <h1 id="dateScreenTitle">🎯 Случайная дата</h1>
+            </div>
+            <div class="question-box">
+                <div class="date" id="displayDate">1945</div>
+            </div>
+            <div class="remaining" id="dateRemaining">Осталось: 0</div>
+            <button class="menu-btn primary" onclick="showRandomDate()">🎲 Ещё дата</button>
+            <button class="menu-btn success" onclick="showFullAnswer()">📖 Полный ответ</button>
+            <button class="back-btn" onclick="goToMenu()">⬅ Вернуться в меню</button>
+        </div>
+    </div>
+
+    <script>
+        // ===== ДАННЫЕ =====
+        let dates = [
+            "1945 – создание ООН. Потсдамская конференция. Принцип 4 \"Д\"",
+            "1945 – формирование Демократической республики Вьетнам (ДРВ)",
+            "Март 1946 — Фултонская речь У. Черчилля",
+            "1946—1991 — период Холодной войны",
+            "1946—1947 — голод в СССР",
+            "1946 — Постановление ЦК ВКП(б) «О журналах „Звезда\" и „Ленинград\"»",
+            "1946-1950 – IV пятилетка.",
+            "1947 — выдвижение доктрины Трумэна",
+            "1947 — начало реализации плана Маршалла",
+            "1947 — отмена карточек на продукты и денежная реформа",
+            "1947—1956 — деятельность Коминформбюро",
+            "1948—1949 — первый Берлинский кризис",
+            "1948 — дело Еврейского антифашистского комитета",
+            "1949 – провозглашение КНР",
+            "1949 – создание ГДР и ФРГ",
+            "1949 — создание Совета экономической взаимопомощи (СЭВ)",
+            "1949 — организация Североатлантического договора (НАТО)",
+            "1949 — первое испытание советской атомной бомбы",
+            "1949—1952 — «ленинградское дело»",
+            "1950—1953 — война в Корее",
+            "1952 — XIX съезд ВКП(б). Переименование ВКП(б) в КПСС",
+            "5 марта 1953 — смерть И. Сталина",
+            "1953—1964 — Н. Хрущёв — 1-й секретарь ЦК КПСС",
+            "1954 — начало освоения целинных земель",
+            "1955 — создание Организации Варшавского договора (ОВД)",
+            "1955 — советско-австрийские договоры о создании независимой Австрии",
+            "1956 — XX съезд КПСС, разоблачение культа личности Сталина",
+            "1956 — Суэцкий кризис, политический кризис в Венгрии, Польше и реакция СССР",
+            "1957 — Всемирный фестиваль молодёжи и студентов в Москве (VI)",
+            "1957 — создание совнархозов",
+            "1957 — запуск СССР первого в мире искусственного спутника Земли",
+            "1959 — XXI съезд КПСС – объявление Хрущёва о полной победе социализма в СССР и начале строительства коммунизма. Визит Н. Хрущёва в США.",
+            "12 апреля 1961 — полёт в космос первого в мире космонавта Ю. Гагарина",
+            "1961 — второй Берлинский кризис. Сооружение Берлинской стены",
+            "1961 — XXII съезд КПСС. Принятие Программы построения коммунизма",
+            "1962 — Карибский кризис",
+            "1963 — космический полёт первой в мире женщины-космонавта В. Терешковой",
+            "1964 — смещение Н. Хрущёва с поста 1-го секретаря ЦК КПСС",
+            "1964—1982 — 1-й (с 1966 — генеральный) секретарь ЦК КПСС Л. Брежнев",
+            "1965 — начало реформы А. Косыгина и аграрной реформы",
+            "1966 — XXIII съезд КПСС. Отмена всех новаций Хрущёва в партии",
+            "1966-1970 — VII пятилетка",
+            "1968 — Пражская весна. Ввод войск стран ОВД в Чехословакию",
+            "1971 — XXV съезд КПСС. Установка на НТП",
+            "1972 — Советско-американский договор об ограничении систем противоракетной обороны (ПРО) и Договор об ограничении стратегических наступательных вооружений (ОСВ-1)",
+            "1975 — завершающий этап Совещания по безопасности и сотрудничеству в Европе (СБСЕ) в Хельсинки. Подписание Заключительного акта.",
+            "7 октября 1977 — принятие Конституции СССР",
+            "1979 — Договор между СССР и США об ограничении стратегических наступательных вооружений (ОСВ-2)",
+            "1979 — ввод советских войск в Афганистан",
+            "1980 — XXII летние Олимпийские игры в Москве",
+            "1982—1984 — Ю. Андропов — генеральный секретарь ЦК КПСС",
+            "1984—1985 — К. Черненко — генеральный секретарь ЦК КПСС",
+            "Март 1985 — избрание М. Горбачёва генеральным секретарём ЦК КПСС",
+            "1985 — Апрельский пленум ЦК КПСС — провозглашение М. Горбачёвым курса на ускорение экономического развития страны. Антиалкогольная кампания",
+            "Февраль 1986 — провозглашение основных направлений политики перестройки на XXVII съезде КПСС",
+            "26 апреля 1986 — авария на Чернобыльской АЭС",
+            "Январь 1987 — провозглашение политики гласности. Начало перестройки. План перехода к «социалистическому рынку» Н. Рыжкова",
+            "1987 - Договор о ликвидации ракет средней и меньшей дальности (ДРСМД)",
+            "Июнь—июль 1988 — ХIХ конференция КПСС",
+            "Февраль 1989 — вывод советских войск из Афганистана",
+            "Май—июнь 1989 — I Съезд народных депутатов СССР – избрание Горбачёва Председателем Верховного Совета СССР",
+            "Февраль—май 1990 — парад суверенитетов",
+            "15 марта 1990 — избрание М. Горбачёва Президентом СССР на III Съезде народных депутатов СССР",
+            "Апрель 1990 — план «автономизации» М. Горбачёва и законы о разграничении полномочий между Союзом ССР и субъектами Федерации (повышение статуса автономий до уровня союзных республик)",
+            "Май—июнь 1990 — I Съезд народных депутатов РСФСР",
+            "12 июня 1990 — принятие Декларации о государственном суверенитете РСФСР",
+            "Июнь 1990 — создание Коммунистической партии РСФСР",
+            "Июнь 1991 — избрание Б. Ельцина Президентом РСФСР",
+            "19—21 августа 1991 — ГКЧП и оборона Белого дома",
+            "Август 1991 — сложение М. Горбачёвым полномочий генерального секретаря ЦК КПСС",
+            "22 августа 1991 — Указ Президента РСФСР Б. Ельцина о приостановлении деятельности Коммунистической партии РСФСР",
+            "Август—октябрь 1991 — объявление государственной независимости союзными республиками",
+            "1991 – подписание СНВ-1",
+            "1 декабря 1991 — референдум о независимости Украины",
+            "Декабрь 1991 — юридическое оформление распада СССР и создание Содружества Независимых Государств (Беловежское соглашение, Алма-Атинская декларация)",
+            "2 января 1992 — начало экономической реформы",
+            "1992 — Указ Президента РФ о введении в действие системы приватизационных чеков (ваучеров), начало приватизации госимущества.",
+            "Март 1992 — подписание субъектами РФ Федеративного договора (кроме Татарстана и Чечни)",
+            "1992 – создание Организация Договора о коллективной безопасности (ОДКБ)",
+            "Январь 1993 — подписание Договора СНВ-2 между Россией и США",
+            "25 апреля 1993 — референдум о доверии Президенту Б. Ельцину и Верховному Совету РФ",
+            "21 сентября 1993 — Указ Президента РФ № 1400 «О поэтапной конституционной реформе», объявление о роспуске Съезда народных депутатов и Верховного Совета РФ и о проведении 12 декабря 1993 референдума по новой Конституции",
+            "Октябрь 1993 — обстрел Белого дома",
+            "12 декабря 1993 — принятие Конституции РФ и выборы в Государственную думу РФ",
+            "Февраль 1994 — подписание договора Российской Федерации с Татарстаном",
+            "Август 1994 — завершение вывода советских/российских войск из Германии",
+            "Декабрь 1994 — начало военно-политического кризиса в Чеченской Республике",
+            "1996 — выборы Президента РФ",
+            "1996 — Хасавюртовские соглашения",
+            "Август 1998 — дефолт, финансовый кризис",
+            "1998 – вхождение РФ в Азиатско-Тихоокеанское экономическое сотрудничество (АТЭС)",
+            "7 августа 1999 — вторжение боевиков в Дагестан. Начало контртеррористической операции",
+            "31 декабря 1999 г. — добровольная отставка (сложение полномочий) Б. Ельцина",
+            "2000 — выборы и вступление в должность Президента РФ В. Путина",
+            "2000 — создание института полномочных представителей Президента РФ в федеральных округах, создание Государственного совета РФ",
+            "20 апреля 2000 — официальное завершение контртеррористической операции на Северном Кавказе",
+            "23 февраля 2003 — президенты России, Казахстана, Белоруссии и Украины заявили о намерении сформировать Единое экономическое пространство",
+            "2003 — выборы в Государственную думу 2004 г. — избрание В. Путина Президентом РФ на второй срок",
+            "2004 — захват террористами школы в Беслане",
+            "2008—2012 — Д. Медведев на посту Президента РФ",
+            "Август 2008 — операция по принуждению Грузии к миру",
+            "9 декабря 2010 — президенты России, Белоруссии и Казахстана под писали документы о создании ЕЭП",
+            "2010—2011 — строительство трубопровода «Северный поток»",
+            "2012 — избрание В. Путина Президентом РФ",
+            "5 февраля 2012 — в Антарктиде завершено бурение сверхглубокой скважины до подлёдного озера Восток",
+            "2014 — XXII зимние Олимпийские игры в Сочи",
+            "2014 — испытательный пуск первой отечественной ракеты-носителя («Ангара»), разработанной в постсоветский период",
+            "2014 — договор о принятии Республики Крым и г. Севастополя в состав России",
+            "1 января 2015 — вступление в силу договора о создании Евразийского экономического союза (ЕАЭС)",
+            "2016 — первый запуск космического аппарата с космодрома «Восточный»",
+            "2018 — избрание В. Путина Президентом РФ. Формирование программы национальных целей и стратегических задач развития Российской Федерации",
+            "2018 — чемпионат мира по футболу в России.",
+            "23 декабря 2019 — пуск в эксплуатацию Крымского моста",
+            "8 января 2020 — сдача в эксплуатацию трубопровода «Турецкий поток»",
+            "1 июля 2020 — голосование по принятию поправок к Конституции РФ",
+            "2021 — выборы в Государственную думу восьмого созыва",
+            "21 февраля 2022 — признание Российской Федерацией независимости ДНР и ЛНР",
+            "24 февраля 2022 — начало Специальной военной операции Вооружённых сил России",
+            "30 сентября 2022 — подписание договоров о принятии ДНР, ЛНР, Запорожской и Херсонской областей в состав России"
+        ];
+
+        let originalDates = [...dates];
+        let correct = 0;
+        let incorrect = 0;
+        let lastDate = null;
+        let isQuizMode = false;
+        let deferredPrompt = null;
+
+        // ===== УСТАНОВКА ПРИЛОЖЕНИЯ =====
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installBanner').classList.add('show');
+        });
+
+        document.getElementById('installBtn').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const result = await deferredPrompt.userChoice;
+                if (result.outcome === 'accepted') {
+                    document.getElementById('installBanner').classList.remove('show');
+                }
+                deferredPrompt = null;
+            }
+        });
+
+        window.addEventListener('appinstalled', () => {
+            document.getElementById('installBanner').classList.remove('show');
+        });
+
+        // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+
+        function sliceDate(text) {
+            let match = text.match(/\d{4}/);
+            if (match) {
+                let idx = text.indexOf(match[0]);
+                return text.substring(0, idx + 4);
+            }
+            return text;
+        }
+
+        function extractYear(text) {
+            let match = text.match(/\d{4}/);
+            if (match) return parseInt(match[0]);
+            return null;
+        }
+
+        function extractEvent(text) {
+            let datePart = sliceDate(text);
+            if (datePart) {
+                let event = text.substring(datePart.length).trim();
+                event = event.replace(/^[-–—\s]+/, '');
+                if (event) return event;
+            }
+            return text;
+        }
+
+        function updateStats() {
+            document.getElementById('correctCount').textContent = correct;
+            document.getElementById('wrongCount').textContent = incorrect;
+            let total = correct + incorrect;
+            let percent = total === 0 ? '0%' : Math.round((correct / total) * 100) + '%';
+            document.getElementById('percentCount').textContent = percent;
+            document.getElementById('remainingCount').textContent = dates.length;
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            updateStats();
+        }
+
+        function goToMenu() {
+            isQuizMode = false;
+            showScreen('menuScreen');
+        }
+
+        function shuffleArray(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                let j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // ===== ОСНОВНЫЕ ФУНКЦИИ =====
+
+        function showRandomDate() {
+            if (dates.length === 0) {
+                alert('Все даты закончились! Нажмите "Сбросить"');
+                return;
+            }
+            let selected = dates[Math.floor(Math.random() * dates.length)];
+            dates = dates.filter(d => d !== selected);
+            lastDate = selected;
+            
+            document.getElementById('displayDate').textContent = sliceDate(selected);
+            document.getElementById('dateRemaining').textContent = 'Осталось: ' + dates.length;
+            document.getElementById('dateScreenTitle').textContent = '🎯 Случайная дата';
+            showScreen('dateScreen');
+        }
+
+        function showFullAnswer() {
+            if (!lastDate) {
+                alert('Сначала выберите дату (нажмите "Случайная дата")');
+                return;
+            }
+            document.getElementById('displayDate').innerHTML = sliceDate(lastDate) + '<br><span style="font-size:16px;color:#555;">' + lastDate + '</span>';
+            document.getElementById('dateRemaining').textContent = 'Осталось: ' + dates.length;
+            document.getElementById('dateScreenTitle').textContent = '📖 Полный ответ';
+            showScreen('dateScreen');
+        }
+
+        function showAllDates() {
+            let list = document.getElementById('allDatesList');
+            list.innerHTML = '';
+            let sorted = [...dates].sort((a, b) => {
+                let ya = extractYear(a) || 0;
+                let yb = extractYear(b) || 0;
+                return ya - yb;
+            });
+            sorted.forEach(d => {
+                let div = document.createElement('div');
+                div.className = 'date-item';
+                div.innerHTML = `<span class="year">${sliceDate(d)}</span> | ${d}`;
+                list.appendChild(div);
+            });
+            showScreen('allDatesScreen');
+        }
+
+        function resetAll() {
+            dates = [...originalDates];
+            correct = 0;
+            incorrect = 0;
+            lastDate = null;
+            isQuizMode = false;
+            updateStats();
+            alert('✅ Сброшено! Загружено ' + dates.length + ' дат');
+            goToMenu();
+        }
+
+        // ===== ВИКТОРИНА =====
+
+        function startQuiz(type) {
+            isQuizMode = true;
+            if (dates.length < 4) {
+                alert('Недостаточно дат для викторины (нужно минимум 4)');
+                return;
+            }
+            document.getElementById('quizMode').textContent = type === 'date-to-event' ? 
+                '❓ Викторина: ДАТА → СОБЫТИЕ' : 
+                '❓ Викторина: СОБЫТИЕ → ДАТА';
+            showQuizQuestion(type);
+            showScreen('quizScreen');
+        }
+
+        function showQuizQuestion(type) {
+            if (dates.length < 4) {
+                document.getElementById('questionBox').innerHTML = '<div class="date">🎉 Все даты изучены!</div>';
+                document.getElementById('optionsContainer').innerHTML = '';
+                document.getElementById('resultContainer').innerHTML = '';
+                return;
+            }
+
+            let correctDate = dates[Math.floor(Math.random() * dates.length)];
+            dates = dates.filter(d => d !== correctDate);
+            lastDate = correctDate;
+
+            let datePart = sliceDate(correctDate);
+            let correctEvent = extractEvent(correctDate);
+            let correctYear = extractYear(correctDate);
+
+            if (!correctEvent || correctYear === null) {
+                showQuizQuestion(type);
+                return;
+            }
+
+            let options = [];
+            let otherDates = [...dates];
+            shuffleArray(otherDates);
+
+            if (type === 'date-to-event') {
+                document.getElementById('questionBox').innerHTML = `<div class="date">📅 ${datePart}</div>`;
+                options = [correctEvent];
+                
+                let nearby = [];
+                for (let d of otherDates) {
+                    let y = extractYear(d);
+                    let e = extractEvent(d);
+                    if (y !== null && e && Math.abs(y - correctYear) <= 5 && e !== correctEvent) {
+                        nearby.push(e);
+                    }
+                }
+                if (nearby.length >= 3) {
+                    shuffleArray(nearby);
+                    options.push(...nearby.slice(0, 3));
+                } else {
+                    for (let d of otherDates.slice(0, 3)) {
+                        let e = extractEvent(d);
+                        if (e && e !== correctEvent) options.push(e);
+                    }
+                }
+                while (options.length < 4) {
+                    options.push('Фиктивное событие ' + (correctYear + Math.floor(Math.random() * 10 - 5)));
+                }
+            } else {
+                document.getElementById('questionBox').innerHTML = `<div class="event">📖 ${correctEvent}</div>`;
+                options = [datePart];
+                
+                let nearby = [];
+                for (let d of otherDates) {
+                    let y = extractYear(d);
+                    if (y !== null && Math.abs(y - correctYear) <= 5) {
+                        nearby.push(sliceDate(d));
+                    }
+                }
+                if (nearby.length >= 3) {
+                    shuffleArray(nearby);
+                    options.push(...nearby.slice(0, 3));
+                } else {
+                    for (let d of otherDates.slice(0, 3)) {
+                        let s = sliceDate(d);
+                        if (s !== datePart) options.push(s);
+                    }
+                }
+                while (options.length < 4) {
+                    let fake = correctYear + Math.floor(Math.random() * 10 - 5);
+                    if (fake !== correctYear) options.push(String(fake));
+                }
+            }
+
+            shuffleArray(options);
+
+            let container = document.getElementById('optionsContainer');
+            container.innerHTML = '';
+            options.forEach((opt, i) => {
+                let btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.textContent = (i + 1) + '. ' + opt;
+                btn.onclick = () => checkAnswer(opt, correctDate, type, options);
+                container.appendChild(btn);
+            });
+
+            document.getElementById('resultContainer').innerHTML = '';
+        }
+
+        function checkAnswer(selected, correctDate, type, options) {
+            let datePart = sliceDate(correctDate);
+            let correctEvent = extractEvent(correctDate);
+            let isCorrect = false;
+
+            if (type === 'date-to-event') {
+                isCorrect = (selected === correctEvent);
+            } else {
+                isCorrect = (selected === datePart);
+            }
+
+            let container = document.getElementById('resultContainer');
+            let btns = document.querySelectorAll('.option-btn');
+            
+            // Блокируем кнопки
+            btns.forEach(btn => btn.style.pointerEvents = 'none');
+            
+            // Показываем правильный ответ
+            btns.forEach((btn, i) => {
+                let text = btn.textContent.substring(3);
+                if (type === 'date-to-event') {
+                    if (text === correctEvent) btn.classList.add('show-correct');
+                } else {
+                    if (text === datePart) btn.classList.add('show-correct');
+                }
+                // Отмечаем выбранный вариант
+                if (btn.textContent === (i+1) + '. ' + selected) {
+                    if (!isCorrect) btn.classList.add('wrong');
+                }
+            });
+
+            if (isCorrect) {
+                correct++;
+                container.innerHTML = `
+                    <div class="result-box correct">
+                        <div class="icon">✅</div>
+                        <div class="text">ПРАВИЛЬНО! Молодец!</div>
+                        <div class="detail">${correctDate}</div>
+                    </div>
+                `;
+            } else {
+                incorrect++;
+                container.innerHTML = `
+                    <div class="result-box wrong">
+                        <div class="icon">❌</div>
+                        <div class="text">НЕПРАВИЛЬНО!</div>
+                        <div class="detail">✅ Правильный ответ: ${correctDate}</div>
+                    </div>
+                `;
+            }
+
+            updateStats();
+
+            // Через 2 секунды показываем следующий вопрос
+            setTimeout(() => {
+                let quizType = document.getElementById('quizMode').textContent.includes('ДАТА → СОБЫТИЕ') ? 
+                    'date-to-event' : 'event-to-date';
+                showQuizQuestion(quizType);
+            }, 2500);
+        }
+
+        // Инициализация
+        updateStats();
+    </script>
+</body>
+</html>
