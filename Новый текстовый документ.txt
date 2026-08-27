@@ -352,7 +352,7 @@
                 <button class="menu-btn warning" onclick="playClick(); startQuiz('date-to-event');"><span class="icon">❓</span><span class="label">Дата → Событие</span></button>
                 <button class="menu-btn danger" onclick="playClick(); startQuiz('event-to-date');"><span class="icon">❓</span><span class="label">Событие → Дата</span></button>
                 <button class="menu-btn secondary" onclick="playClick(); resetAll();"><span class="icon">🔄</span><span class="label">Сбросить всё</span></button>
-                <button class="menu-btn secondary" id="musicToggleBtn" onclick="toggleMusic()"><span class="icon">🔊</span><span class="label">Музыка: Вкл</span></button>
+                <button class="menu-btn secondary" id="musicToggleBtn" onclick="toggleSoundAndMusic()"><span class="icon">🔊</span><span class="label">Звук: Вкл</span></button>
             </div>
         </div>
         
@@ -387,7 +387,7 @@
 
     <script>
         // ============================================================
-        // ===== ЗВУКОВЫЕ ЭФФЕКТЫ (клик, правильно, неправильно) =====
+        // ===== ЗВУКОВАЯ СИСТЕМА =====
         // ============================================================
         let isSoundEnabled = true;
 
@@ -427,52 +427,138 @@
         }
 
         // ============================================================
-        // ===== ТВОЯ ФОНОВАЯ МУЗЫКА (из файла bg-music.mp3) =====
+        // ===== УПРАВЛЕНИЕ ЗВУКОМ (одна кнопка в меню) =====
         // ============================================================
         let bgMusic = null;
-        let isMusicOn = true;
+        let isBgMusicPlaying = false;
+        let bgMusicInterval = null;
+        let musicStarted = false;
 
-        function initMusic() {
+        function initBgMusic() {
             try {
                 bgMusic = new Audio('bg-music.mp3');
                 bgMusic.loop = true;
                 bgMusic.volume = 0.4;
                 bgMusic.preload = 'auto';
-                
-                // Пробуем запустить сразу
-                bgMusic.play().catch(() => {
-                    // Если браузер блокирует — запускаем после первого клика
-                    document.addEventListener('click', function playOnClick() {
-                        if (isMusicOn && bgMusic) {
-                            bgMusic.play().catch(() => {});
-                        }
-                        document.removeEventListener('click', playOnClick);
-                    });
+                bgMusic.addEventListener('error', () => {
+                    bgMusic = null;
                 });
             } catch (e) {
-                console.log('Файл bg-music.mp3 не найден, музыка не играет');
+                bgMusic = null;
             }
         }
 
-        function toggleMusic() {
-            const btn = document.getElementById('musicToggleBtn');
-            if (isMusicOn) {
-                isMusicOn = false;
-                if (bgMusic) {
-                    bgMusic.pause();
-                }
-                btn.innerHTML = '<span class="icon">🔇</span><span class="label">Музыка: Выкл</span>';
+        function toggleSoundAndMusic() {
+            isSoundEnabled = !isSoundEnabled;
+            
+            if (!isSoundEnabled) {
+                stopBgMusic();
+                updateMusicButton('off');
             } else {
-                isMusicOn = true;
-                if (bgMusic) {
-                    bgMusic.play().catch(() => {});
+                updateMusicButton('on');
+                if (!isBgMusicPlaying) {
+                    startBgMusic();
                 }
-                btn.innerHTML = '<span class="icon">🔊</span><span class="label">Музыка: Вкл</span>';
             }
         }
 
-        // Запускаем твою музыку при загрузке
-        initMusic();
+        function startBgMusic() {
+            if (!isSoundEnabled) return;
+            if (isBgMusicPlaying) return;
+            
+            isBgMusicPlaying = true;
+            musicStarted = true;
+            
+            if (bgMusic) {
+                try {
+                    bgMusic.currentTime = 0;
+                    bgMusic.play().catch(() => {
+                        playSynthBgMusic();
+                    });
+                    return;
+                } catch (e) {
+                    playSynthBgMusic();
+                }
+            } else {
+                playSynthBgMusic();
+            }
+        }
+
+        function playSynthBgMusic() {
+            const notes = [523, 587, 659, 784];
+            let noteIndex = 0;
+            
+            if (bgMusicInterval) {
+                clearInterval(bgMusicInterval);
+                bgMusicInterval = null;
+            }
+            
+            bgMusicInterval = setInterval(() => {
+                if (!isBgMusicPlaying || !isSoundEnabled) return;
+                try {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    oscillator.type = 'sine';
+                    oscillator.frequency.value = notes[noteIndex % notes.length];
+                    gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    oscillator.start();
+                    oscillator.stop(audioCtx.currentTime + 0.4);
+                    noteIndex++;
+                } catch (e) {}
+            }, 500);
+        }
+
+        function stopBgMusic() {
+            isBgMusicPlaying = false;
+            musicStarted = false;
+            if (bgMusic) {
+                try {
+                    bgMusic.pause();
+                    bgMusic.currentTime = 0;
+                } catch (e) {}
+            }
+            if (bgMusicInterval) {
+                clearInterval(bgMusicInterval);
+                bgMusicInterval = null;
+            }
+        }
+
+        function updateMusicButton(state) {
+            const btn = document.getElementById('musicToggleBtn');
+            if (state === 'on') {
+                btn.innerHTML = '<span class="icon">🔊</span><span class="label">Звук: Вкл</span>';
+            } else {
+                btn.innerHTML = '<span class="icon">🔇</span><span class="label">Звук: Выкл</span>';
+            }
+        }
+
+        // ===== ЗАПУСК МУЗЫКИ СРАЗУ ПОСЛЕ ЗАГРУЗКИ =====
+        function autoStartMusic() {
+            if (!musicStarted && isSoundEnabled) {
+                startBgMusic();
+                updateMusicButton('on');
+            }
+        }
+
+        // Пробуем запустить музыку сразу
+        initBgMusic();
+
+        // Запускаем музыку с небольшой задержкой (чтобы страница загрузилась)
+        setTimeout(() => {
+            autoStartMusic();
+        }, 300);
+
+        // Если браузер заблокировал — запускаем после первого клика
+        document.addEventListener('click', () => {
+            if (!musicStarted && isSoundEnabled) {
+                startBgMusic();
+                updateMusicButton('on');
+            }
+        });
 
         // ============================================================
         // ===== ДАННЫЕ (1945–2022) =====
